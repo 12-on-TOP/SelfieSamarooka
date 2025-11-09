@@ -12,5 +12,89 @@
   <source src="remix.m4a">
   Your browser does not support the video tag.
 </video>
+
+    // === Snake Bot: prioritize avoiding snakes over food ===
+(function() {
+  console.log("Bot activated: avoid snakes first, then chase food");
+
+  let coilStart = null; // timestamp when coiling began
+
+  function moveToWorld(x, y) {
+    const sx = window.slither.xx;
+    const sy = window.slither.yy;
+    window.xm = x - sx;
+    window.ym = y - sy;
+  }
+
+  function findFood() {
+    let best = null, bestDist = Infinity;
+    for (const f of window.foods) {
+      if (!f) continue;
+      const dx = f.xx - window.slither.xx;
+      const dy = f.yy - window.slither.yy;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = f;
+      }
+    }
+    return best;
+  }
+
+  // Scan all enemy snake segments, not just heads
+  function findNearestSnakeSegment(radius = 1000) {
+    let nearest = null, nearestDist = Infinity;
+    for (const enemy of window.slithers) {
+      if (!enemy || enemy === window.slither) continue; // skip self
+      if (!enemy.pts) continue;
+      for (const seg of enemy.pts) {
+        const dx = seg.xx - window.slither.xx;
+        const dy = seg.yy - window.slither.yy;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < nearestDist && dist < radius) {
+          nearestDist = dist;
+          nearest = seg;
+        }
+      }
+    }
+    return nearest;
+  }
+
+  function isCoiling() {
+    return Math.abs(window.slither.ang - window.slither.eang) > 0.5;
+  }
+
+  function enemyBoosting(enemy) {
+    return enemy.sp > 2; // speed > normal baseline
+  }
+
+  setInterval(() => {
+    const danger = findNearestSnakeSegment();
+    if (danger) {
+      // 🚨 PRIORITY: avoid snakes
+      moveToWorld(
+        window.slither.xx - (danger.xx - window.slither.xx),
+        window.slither.yy - (danger.yy - window.slither.yy)
+      );
+      window.setAcceleration(1); // always boost away from danger
+    } else {
+      // ✅ Only chase food if no danger
+      const target = findFood();
+      if (target) moveToWorld(target.xx, target.yy);
+
+      if (isCoiling()) {
+        if (!coilStart) coilStart = Date.now();
+        const elapsed = Date.now() - coilStart;
+        if (elapsed > 3000) {
+          window.setAcceleration(1); // boost if coiling > 3s
+        }
+      } else {
+        coilStart = null;
+        window.setAcceleration(0);
+      }
+    }
+  }, 100);
+})();
+
   </body>
 </html>
